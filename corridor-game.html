@@ -1,0 +1,584 @@
+<title>廊下の異変</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Noto+Sans+JP:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap');
+
+  :root{
+    --void:#0a0b0a;
+    --wall:#aca684;
+    --wall-shadow:#847d5f;
+    --ceiling:#c9c8b8;
+    --ceiling-shadow:#a3a18d;
+    --floor:#4c493f;
+    --floor-far:#302e28;
+    --light-on:#f5efd6;
+    --light-glow:#fff6cf;
+    --light-off:#3a3a34;
+    --ink:#1c1a15;
+    --paper:#e9e2c9;
+    --accent:#c9432c;
+    --accent-glow:#ff7a5c;
+    --text:#efe9d6;
+    --text-dim:#9d9788;
+    --panel:#151511;
+    --panel-edge:#2b2a22;
+    --ok:#7fae7a;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--void);
+    color:var(--text);
+    font-family:'Noto Sans JP', 'Hiragino Sans', sans-serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    padding:24px 16px 40px;
+  }
+
+  .app{
+    width:100%;
+    max-width:760px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+
+  header.hud{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .title{
+    font-family:'Big Shoulders Display', sans-serif;
+    font-weight:800;
+    font-size:clamp(28px,5vw,40px);
+    letter-spacing:0.02em;
+    color:var(--text);
+    text-wrap:balance;
+    margin:0;
+  }
+  .title small{
+    display:block;
+    font-family:'Noto Sans JP',sans-serif;
+    font-weight:500;
+    font-size:12px;
+    letter-spacing:0.16em;
+    color:var(--text-dim);
+    margin-top:2px;
+  }
+
+  .pips{
+    display:flex;
+    gap:6px;
+    align-items:center;
+  }
+  .pip{
+    width:14px;height:14px;
+    border-radius:3px;
+    background:var(--panel-edge);
+    border:1px solid var(--wall-shadow);
+    transition:background .35s ease, box-shadow .35s ease;
+  }
+  .pip.done{
+    background:var(--ok);
+    border-color:var(--ok);
+    box-shadow:0 0 8px color-mix(in srgb, var(--ok) 70%, transparent);
+  }
+
+  .stage-frame{
+    position:relative;
+    border-radius:10px;
+    background:var(--panel);
+    border:1px solid var(--panel-edge);
+    padding:14px;
+    box-shadow:0 20px 50px -25px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.02);
+  }
+  .stage{
+    position:relative;
+    border-radius:4px;
+    overflow:hidden;
+    background:var(--floor-far);
+    aspect-ratio:8/5;
+  }
+  .stage svg{
+    width:100%;
+    height:100%;
+    display:block;
+  }
+  .vignette{
+    position:absolute;inset:0;
+    pointer-events:none;
+    background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%);
+  }
+  .scanlines{
+    position:absolute;inset:0;
+    pointer-events:none;
+    opacity:0.10;
+    background:repeating-linear-gradient(to bottom, rgba(255,255,255,0.5) 0px, rgba(255,255,255,0.5) 1px, transparent 1px, transparent 3px);
+    mix-blend-mode:overlay;
+  }
+
+  .stage.shake{ animation:shake 0.4s ease; }
+  @keyframes shake{
+    0%,100%{ transform:translateX(0); }
+    20%{ transform:translateX(-6px) rotate(-0.3deg); }
+    40%{ transform:translateX(5px) rotate(0.3deg); }
+    60%{ transform:translateX(-4px); }
+    80%{ transform:translateX(3px); }
+  }
+  .stage.flash::after{
+    content:"";
+    position:absolute;inset:0;
+    background:var(--accent);
+    opacity:0.35;
+    animation:flashfade 0.5s ease forwards;
+  }
+  @keyframes flashfade{ from{opacity:0.45;} to{opacity:0;} }
+
+  .fade-enter{ animation:fadein .38s ease both; }
+  @keyframes fadein{ from{ opacity:0; filter:brightness(0.4); } to{ opacity:1; filter:brightness(1); } }
+
+  .status-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    font-size:13px;
+    color:var(--text-dim);
+    padding:2px 4px;
+    min-height:20px;
+  }
+  .status-row .msg{
+    color:var(--text);
+    font-weight:500;
+  }
+  .status-row .stats{
+    font-family:'Space Mono', monospace;
+    font-variant-numeric:tabular-nums;
+    white-space:nowrap;
+  }
+
+  .controls{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+  button.choice{
+    font-family:'Big Shoulders Display', sans-serif;
+    font-weight:700;
+    font-size:20px;
+    letter-spacing:0.02em;
+    padding:16px 10px;
+    border-radius:8px;
+    border:1px solid var(--panel-edge);
+    background:var(--panel);
+    color:var(--text);
+    cursor:pointer;
+    transition:transform .12s ease, background .12s ease, border-color .12s ease;
+  }
+  button.choice span.sub{
+    display:block;
+    font-family:'Noto Sans JP', sans-serif;
+    font-weight:400;
+    font-size:11px;
+    color:var(--text-dim);
+    letter-spacing:0.04em;
+    margin-top:2px;
+  }
+  button.choice:hover{ border-color:var(--wall-shadow); background:#1b1b16; }
+  button.choice:active{ transform:scale(0.97); }
+  button.choice:focus-visible{ outline:2px solid var(--accent-glow); outline-offset:2px; }
+  button.choice.back{ color:var(--accent-glow); }
+  button.choice:disabled{ opacity:0.4; cursor:default; }
+
+  .rules{
+    font-size:12.5px;
+    line-height:1.7;
+    color:var(--text-dim);
+    background:var(--panel);
+    border:1px solid var(--panel-edge);
+    border-radius:8px;
+    padding:12px 14px;
+  }
+  .rules b{ color:var(--text); font-weight:700; }
+
+  .end-panel{
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+    gap:10px;
+    padding:36px 20px;
+  }
+  .end-panel.show{ display:flex; }
+  .end-title{
+    font-family:'Big Shoulders Display', sans-serif;
+    font-weight:800;
+    font-size:clamp(30px,7vw,46px);
+    margin:0;
+  }
+  .end-panel.win .end-title{ color:var(--ok); }
+  .end-panel p{ color:var(--text-dim); max-width:46ch; margin:0; font-size:14px; line-height:1.7; }
+  .end-stats{
+    font-family:'Space Mono', monospace;
+    font-variant-numeric:tabular-nums;
+    font-size:13px;
+    color:var(--text);
+    display:flex;
+    gap:18px;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .end-stats div{ display:flex; flex-direction:column; align-items:center; gap:2px; }
+  .end-stats .n{ font-size:22px; font-weight:700; }
+  .end-stats .l{ font-size:10px; color:var(--text-dim); letter-spacing:0.08em; }
+  .retry-btn{
+    margin-top:6px;
+    font-family:'Big Shoulders Display', sans-serif;
+    font-weight:700;
+    font-size:17px;
+    padding:12px 28px;
+    border-radius:8px;
+    border:1px solid var(--wall-shadow);
+    background:var(--paper);
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .retry-btn:hover{ background:#f2ecd6; }
+
+  footer.note{
+    text-align:center;
+    font-size:11px;
+    color:var(--text-dim);
+    opacity:0.7;
+    margin-top:4px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .stage.shake, .stage.flash::after, .fade-enter, #lightFar{ animation:none !important; }
+  }
+</style>
+
+<div class="app">
+  <header class="hud">
+    <h1 class="title">廊下の異変<small>ANOMALY IN THE HALLWAY</small></h1>
+    <div class="pips" id="pips" aria-label="進行状況"></div>
+  </header>
+
+  <div class="stage-frame">
+    <div class="stage" id="stage">
+      <svg id="scene" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <radialGradient id="lightGlow" cx="50%" cy="50%" r="60%">
+            <stop offset="0%" stop-color="var(--light-glow)" stop-opacity="0.55"/>
+            <stop offset="100%" stop-color="var(--light-glow)" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+
+        <rect x="0" y="0" width="800" height="500" fill="var(--floor-far)"/>
+
+        <!-- back wall / door recess -->
+        <polygon points="330,160 470,160 470,340 330,340" fill="var(--floor-far)"/>
+        <rect id="doorway" x="360" y="196" width="80" height="144" fill="#050504"/>
+        <g id="figure" opacity="0" transform="translate(400,300)">
+          <circle cx="0" cy="-70" r="11" fill="var(--ink)"/>
+          <path d="M -14 -58 Q 0 -46 14 -58 L 16 6 Q 0 14 -16 6 Z" fill="var(--ink)"/>
+        </g>
+        <path id="arrow" d="M400,178 l-10,-16 h20 z M392,164 h16 v-8 h-16 z" fill="var(--accent)" transform="rotate(0 400 172)"/>
+        <text x="400" y="150" text-anchor="middle" font-family="'Big Shoulders Display',sans-serif" font-weight="800" font-size="17" fill="var(--accent)" letter-spacing="2">EXIT</text>
+
+        <!-- ceiling -->
+        <polygon points="40,20 760,20 470,160 330,160" fill="var(--ceiling)"/>
+        <polygon points="40,20 330,160 330,340 40,480" fill="var(--ceiling-shadow)" opacity="0.0"/>
+        <rect id="light1" x="248" y="38" width="304" height="16" rx="3" fill="var(--light-on)"/>
+        <rect id="light2" x="298" y="84" width="204" height="12" rx="2" fill="var(--light-on)"/>
+        <rect id="lightFar" x="344" y="122" width="112" height="9" rx="2" fill="var(--light-on)"/>
+
+        <!-- floor -->
+        <polygon points="40,480 760,480 470,340 330,340" fill="var(--floor)"/>
+        <polygon points="40,480 330,340 400,346 400,480" fill="var(--floor-far)" opacity="0.25"/>
+
+        <!-- left wall -->
+        <polygon points="40,20 40,480 330,340 330,160" fill="var(--wall)"/>
+        <polygon points="40,20 40,480 90,455 90,45" fill="var(--wall-shadow)" opacity="0.35"/>
+        <!-- poster -->
+        <g id="poster" transform="translate(0,0)">
+          <rect x="76" y="150" width="92" height="128" fill="var(--paper)" stroke="var(--ink)" stroke-width="3"/>
+          <rect x="88" y="164" width="68" height="46" fill="none" stroke="var(--ink)" stroke-width="2"/>
+          <line x1="88" y1="222" x2="156" y2="222" stroke="var(--ink)" stroke-width="2"/>
+          <line x1="88" y1="234" x2="140" y2="234" stroke="var(--ink)" stroke-width="2"/>
+          <line x1="88" y1="246" x2="150" y2="246" stroke="var(--ink)" stroke-width="2"/>
+        </g>
+        <!-- plaque -->
+        <g id="plaque" transform="translate(0,0)">
+          <rect x="150" y="330" width="54" height="40" rx="2" fill="var(--panel)" stroke="var(--wall-shadow)" stroke-width="2"/>
+          <text id="plaqueNum" x="177" y="359" text-anchor="middle" font-family="'Space Mono',monospace" font-weight="700" font-size="22" fill="var(--text)">1</text>
+        </g>
+
+        <!-- right wall -->
+        <polygon points="760,20 760,480 470,340 470,160" fill="var(--wall)"/>
+        <polygon points="760,20 760,480 710,455 710,45" fill="var(--wall-shadow)" opacity="0.35"/>
+        <!-- pipes -->
+        <g id="pipes" stroke="#6b6650" stroke-width="6" stroke-linecap="round">
+          <line x1="500" y1="400" x2="748" y2="400"/>
+          <line x1="500" y1="424" x2="748" y2="424"/>
+        </g>
+        <line id="pipeExtra" x1="500" y1="448" x2="748" y2="448" stroke="#3f3b2c" stroke-width="7" stroke-linecap="round" opacity="0"/>
+        <ellipse id="stain" cx="600" cy="70" rx="46" ry="16" fill="#22201a" opacity="0"/>
+
+        <rect x="0" y="0" width="800" height="500" fill="url(#lightGlow)" opacity="0.5"/>
+      </svg>
+      <div class="vignette"></div>
+      <div class="scanlines"></div>
+    </div>
+
+    <div class="end-panel" id="endPanel">
+      <h2 class="end-title" id="endTitle">回廊の外へ</h2>
+      <p id="endText">目を凝らし続けた甲斐があった。8番目の扉の先に、見慣れた空気が流れている。</p>
+      <div class="end-stats">
+        <div><span class="n" id="statSteps">0</span><span class="l">通過数</span></div>
+        <div><span class="n" id="statMistakes">0</span><span class="l">やり直した回数</span></div>
+        <div><span class="n" id="statBest">-</span><span class="l">自己ベスト(最少やり直し)</span></div>
+      </div>
+      <button class="retry-btn" id="retryBtn">もう一度、廊下へ</button>
+    </div>
+  </div>
+
+  <div class="status-row">
+    <span class="msg" id="msg">よく観察してから選んでください。</span>
+    <span class="stats" id="statsLine">MISTAKES 0</span>
+  </div>
+
+  <div class="controls" id="controls">
+    <button class="choice back" id="btnBack">引き返す<span class="sub">何かがおかしい</span></button>
+    <button class="choice" id="btnGo">そのまま進む<span class="sub">いつも通りだ</span></button>
+  </div>
+
+  <div class="rules">
+    <b>ルール</b> — 廊下の様子をよく見てください。いつもと違う点に気づいたら「引き返す」。何も変わっていなければ「そのまま進む」。判断を8回続けて誤らなければ、回廊の外に出られます。間違えると振り出しに戻ります。
+  </div>
+
+  <footer class="note">同じ廊下を繰り返し歩く系ゲームからインスパイアされた、オリジナルの短編ブラウザゲームです。</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var TOTAL = 8;
+  var STORE_KEY = "corridor-anomaly-best-mistakes";
+
+  var state = { step: 0, mistakes: 0, totalMistakes: 0, lastType: null, awaiting: false, current: null };
+
+  var els = {
+    stage: document.getElementById('stage'),
+    pips: document.getElementById('pips'),
+    msg: document.getElementById('msg'),
+    statsLine: document.getElementById('statsLine'),
+    btnBack: document.getElementById('btnBack'),
+    btnGo: document.getElementById('btnGo'),
+    controls: document.getElementById('controls'),
+    endPanel: document.getElementById('endPanel'),
+    endTitle: document.getElementById('endTitle'),
+    endText: document.getElementById('endText'),
+    statSteps: document.getElementById('statSteps'),
+    statMistakes: document.getElementById('statMistakes'),
+    statBest: document.getElementById('statBest'),
+    retryBtn: document.getElementById('retryBtn'),
+    scene: document.getElementById('scene')
+  };
+
+  var svgEl = {
+    light1: document.getElementById('light1'),
+    light2: document.getElementById('light2'),
+    poster: document.getElementById('poster'),
+    plaqueNum: document.getElementById('plaqueNum'),
+    pipeExtra: document.getElementById('pipeExtra'),
+    stain: document.getElementById('stain'),
+    figure: document.getElementById('figure'),
+    arrow: document.getElementById('arrow')
+  };
+
+  var ANOMALY_TYPES = ['light_off','poster_flip','wrong_number','pipe_added','stain','figure','arrow_reversed'];
+
+  function readBest(){
+    try{
+      var v = window.localStorage.getItem(STORE_KEY);
+      return v === null ? null : parseInt(v,10);
+    }catch(e){ return null; }
+  }
+  function writeBest(v){
+    try{ window.localStorage.setItem(STORE_KEY, String(v)); }catch(e){}
+  }
+
+  function buildPips(){
+    els.pips.innerHTML = '';
+    for(var i=0;i<TOTAL;i++){
+      var d = document.createElement('div');
+      d.className = 'pip';
+      els.pips.appendChild(d);
+    }
+  }
+  function updatePips(){
+    var nodes = els.pips.children;
+    for(var i=0;i<nodes.length;i++){
+      nodes[i].classList.toggle('done', i < state.step);
+    }
+  }
+
+  function resetVisuals(){
+    svgEl.light1.setAttribute('fill','var(--light-on)');
+    svgEl.light2.setAttribute('fill','var(--light-on)');
+    svgEl.poster.setAttribute('transform','translate(0,0)');
+    svgEl.pipeExtra.setAttribute('opacity','0');
+    svgEl.stain.setAttribute('opacity','0');
+    svgEl.figure.setAttribute('opacity','0');
+    svgEl.arrow.setAttribute('transform','rotate(0 400 172)');
+  }
+
+  function applyAnomaly(type, expectedNum){
+    switch(type){
+      case 'light_off':
+        (Math.random()<0.5?svgEl.light1:svgEl.light2).setAttribute('fill','var(--light-off)');
+        break;
+      case 'poster_flip':
+        svgEl.poster.setAttribute('transform','translate(0,300) scale(1,-1)');
+        break;
+      case 'wrong_number':
+        svgEl.plaqueNum.textContent = String(expectedNum + (Math.random()<0.5?1:-1));
+        break;
+      case 'pipe_added':
+        svgEl.pipeExtra.setAttribute('opacity','1');
+        break;
+      case 'stain':
+        svgEl.stain.setAttribute('opacity','0.9');
+        break;
+      case 'figure':
+        svgEl.figure.setAttribute('opacity','0.9');
+        break;
+      case 'arrow_reversed':
+        svgEl.arrow.setAttribute('transform','rotate(180 400 172)');
+        break;
+    }
+  }
+
+  function pickAnomalyType(){
+    var pool = ANOMALY_TYPES.filter(function(t){ return t !== state.lastType; });
+    return pool[Math.floor(Math.random()*pool.length)];
+  }
+
+  function generateRound(step){
+    var expectedNum = step + 1;
+    svgEl.plaqueNum.textContent = String(expectedNum);
+    if(step === 0){
+      return { hasAnomaly:false, type:null };
+    }
+    var hasAnomaly = Math.random() < 0.5;
+    if(!hasAnomaly) return { hasAnomaly:false, type:null };
+    var type = pickAnomalyType();
+    state.lastType = type;
+    return { hasAnomaly:true, type:type };
+  }
+
+  function renderRound(){
+    resetVisuals();
+    var expectedNum = state.step + 1;
+    var round = generateRound(state.step);
+    state.current = round;
+    if(round.hasAnomaly){ applyAnomaly(round.type, expectedNum); }
+    els.stage.classList.remove('fade-enter');
+    void els.stage.offsetWidth;
+    els.stage.classList.add('fade-enter');
+    state.awaiting = true;
+    els.btnBack.disabled = false;
+    els.btnGo.disabled = false;
+  }
+
+  function setMsg(text){ els.msg.textContent = text; }
+  function updateStatsLine(){ els.statsLine.textContent = 'MISTAKES ' + state.totalMistakes; }
+
+  function handleChoice(choseBack){
+    if(!state.awaiting) return;
+    state.awaiting = false;
+    els.btnBack.disabled = true;
+    els.btnGo.disabled = true;
+    var correct = (choseBack === state.current.hasAnomaly);
+    if(correct){
+      state.step += 1;
+      updatePips();
+      if(state.current.hasAnomaly){
+        setMsg('違和感に気づいた。先へ進む。');
+      } else {
+        setMsg('特に変わりはなかった。歩みを進める。');
+      }
+      if(state.step >= TOTAL){
+        window.setTimeout(showEnd, 500);
+        return;
+      }
+      window.setTimeout(renderRound, 550);
+    } else {
+      state.mistakes += 1;
+      state.totalMistakes += 1;
+      updateStatsLine();
+      els.stage.classList.add('shake','flash');
+      window.setTimeout(function(){
+        els.stage.classList.remove('shake','flash');
+      }, 500);
+      if(state.current.hasAnomaly){
+        setMsg('何かが違っていたのに、気づけなかった……振り出しに戻る。');
+      } else {
+        setMsg('気のせいだったようだ……振り出しに戻る。');
+      }
+      state.step = 0;
+      updatePips();
+      window.setTimeout(renderRound, 900);
+    }
+  }
+
+  function showEnd(){
+    els.controls.style.display = 'none';
+    document.querySelector('.rules').style.display = 'none';
+    els.endPanel.classList.add('show','win');
+    els.endTitle.textContent = '回廊の外へ';
+    els.endText.textContent = '目を凝らし続けた甲斐があった。' + TOTAL + '番目の先に、見慣れた空気が流れている。';
+    els.statSteps.textContent = String(TOTAL);
+    els.statMistakes.textContent = String(state.totalMistakes);
+    var best = readBest();
+    if(best === null || state.totalMistakes < best){
+      best = state.totalMistakes;
+      writeBest(best);
+    }
+    els.statBest.textContent = String(best);
+  }
+
+  function start(){
+    state.step = 0;
+    state.mistakes = 0;
+    state.totalMistakes = 0;
+    state.lastType = null;
+    buildPips();
+    updatePips();
+    updateStatsLine();
+    setMsg('よく観察してから選んでください。');
+    els.endPanel.classList.remove('show','win');
+    els.controls.style.display = 'grid';
+    document.querySelector('.rules').style.display = 'block';
+    renderRound();
+  }
+
+  els.btnBack.addEventListener('click', function(){ handleChoice(true); });
+  els.btnGo.addEventListener('click', function(){ handleChoice(false); });
+  els.retryBtn.addEventListener('click', start);
+
+  function boot(initial){
+    start();
+  }
+  if(window.claude && window.claude.hot){
+    window.claude.hot.ready ? window.claude.hot.ready(boot) : boot(window.claude.hot.data || {});
+  } else {
+    boot({});
+  }
+})();
+</script>
